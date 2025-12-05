@@ -35,7 +35,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://localhost:8000/api/auth/login', {
+      const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -45,10 +46,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (response.ok) {
         const data = await response.json();
+        
+        // Map role from backend to frontend role
+        const userRole = data.user.role === 'engineer' ? 'admin' : 'user';
+        
         const user: User = {
           id: data.user.username,
           email: data.user.email,
-          role: data.user.role === 'engineer' ? 'admin' : 'user',
+          role: userRole,
           name: data.user.name,
           campus: 'Mining Plant'
         };
@@ -59,8 +64,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(false);
         return true;
       } else {
-        const error = await response.json();
-        alert(error.error || 'Login failed');
+        const error = await response.json().catch(() => ({ detail: 'Login failed' }));
+        console.error('Login failed:', error);
+        alert(error.detail || error.message || 'Invalid username or password');
         setIsLoading(false);
         return false;
       }
@@ -68,8 +74,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Login error:', error);
       if (error instanceof TypeError && error.message.includes('fetch')) {
         alert('Cannot connect to backend. Make sure backend is running on http://localhost:8000');
-      } else {
+      } else if (error instanceof Error) {
         alert(`Connection error: ${error.message}`);
+      } else {
+        alert('An unexpected error occurred during login');
       }
       setIsLoading(false);
       return false;

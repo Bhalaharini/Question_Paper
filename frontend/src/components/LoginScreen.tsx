@@ -7,6 +7,8 @@ const LoginScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'operator' | 'engineer'>('operator');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
   const { login } = useAuth();
   const fullText = 'Mining Comminution Optimizer';
@@ -24,12 +26,22 @@ const LoginScreen: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const handleLogin = async (username: string, password: string) => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username || !password) {
+      alert('Please enter both username and password');
+      return;
+    }
+    
     setIsLoading(true);
     try {
-      await login(username, password);
+      const success = await login(username, password);
+      if (!success) {
+        setPassword(''); // Clear password on failed login
+      }
     } catch (error) {
       console.error('Login failed:', error);
+      setPassword('');
     }
     setIsLoading(false);
   };
@@ -37,6 +49,15 @@ const LoginScreen: React.FC = () => {
   const handleRoleSelect = (role: 'operator' | 'engineer') => {
     setSelectedRole(role);
     setShowLoginForm(true);
+    // Pre-fill username based on role for convenience
+    setUsername(role === 'operator' ? 'operator1' : 'engineer1');
+    setPassword('');
+  };
+
+  const handleBack = () => {
+    setShowLoginForm(false);
+    setUsername('');
+    setPassword('');
   };
 
   return (
@@ -87,39 +108,50 @@ const LoginScreen: React.FC = () => {
         ) : (
           <div className="space-y-4">
             <div className="rounded-xl p-6 shadow-soft bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
-              <h3 className="text-lg font-semibold mb-4 text-primary">{selectedRole === 'operator' ? 'Operator Login' : 'Engineer Login'}</h3>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.target as HTMLFormElement);
-                const password = formData.get('password') as string;
-                const username = selectedRole === 'operator' ? 'operator1' : 'engineer1';
-                handleLogin(username, password);
-              }}>
+              <h3 className="text-lg font-semibold mb-4 text-primary">
+                {selectedRole === 'operator' ? 'Operator Login' : 'Engineer Login'}
+              </h3>
+              <form onSubmit={handleLogin}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-secondary mb-2">Username</label>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Username
+                    </label>
                     <input
                       type="text"
-                      value={selectedRole === 'operator' ? 'operator1' : 'engineer1'}
-                      disabled
-                      className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-neutral-100 dark:bg-neutral-600 text-primary dark:text-secondary"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Enter your username"
+                      className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-neutral-50 dark:bg-neutral-700 text-primary dark:text-secondary focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      required
+                      autoComplete="username"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-secondary mb-2">Password</label>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Password
+                    </label>
                     <input
                       type="password"
-                      name="password"
-                      placeholder="password123"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
                       className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-neutral-50 dark:bg-neutral-700 text-primary dark:text-secondary focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       required
+                      autoComplete="current-password"
                     />
+                  </div>
+                  <div className="text-xs text-tertiary">
+                    {selectedRole === 'operator' 
+                      ? 'Default credentials: operator1 / operator123'
+                      : 'Default credentials: engineer1 / engineer123'}
                   </div>
                   <div className="flex space-x-3">
                     <button
                       type="button"
-                      onClick={() => setShowLoginForm(false)}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                      onClick={handleBack}
+                      disabled={isLoading}
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
                     >
                       Back
                     </button>

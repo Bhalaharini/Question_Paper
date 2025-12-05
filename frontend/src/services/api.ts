@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 let authToken: string | null = localStorage.getItem('token');
 
@@ -39,7 +39,7 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
 
 export const authAPI = {
   login: (username: string, password: string) =>
-    apiRequest('/auth/login', {
+    apiRequest('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     }),
@@ -47,10 +47,10 @@ export const authAPI = {
 
 export const machineAPI = {
   getMachineStatus: (machineId: string) =>
-    apiRequest(`/machines/${machineId}/status`),
+    apiRequest(`/api/machines/${machineId}/status`),
   
   controlMachine: (machineId: string, action: string) =>
-    apiRequest(`/machines/${machineId}/control`, {
+    apiRequest(`/api/machines/${machineId}/control`, {
       method: 'POST',
       body: JSON.stringify({ action }),
     }),
@@ -65,10 +65,10 @@ export const machineAPI = {
 };
 
 export const analyticsAPI = {
-  getOverview: () => apiRequest('/analytics/overview'),
-  getTrends: () => apiRequest('/analytics/trends'),
-  getBreakdown: () => apiRequest('/analytics/breakdown'),
-  getAlerts: () => apiRequest('/analytics/alerts'),
+  getOverview: () => apiRequest('/api/analytics/overview'),
+  getTrends: () => apiRequest('/api/analytics/trends'),
+  getBreakdown: () => apiRequest('/api/analytics/breakdown'),
+  getAlerts: () => apiRequest('/api/analytics/alerts'),
 };
 
 export const api = {

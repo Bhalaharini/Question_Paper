@@ -6,7 +6,7 @@ const LoginScreen: React.FC = () => {
   const [displayText, setDisplayText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showAdminForm, setShowAdminForm] = useState(false);
-  const [employeeId, setEmployeeId] = useState('');
+  const [employeeId, setEmployeeId] = useState('JVVNL2024001');
   const { login } = useAuth();
   const fullText = 'Mining Comminution Optimizer';
 
@@ -104,7 +104,7 @@ const LoginScreen: React.FC = () => {
                   type="text"
                   value={employeeId}
                   onChange={(e) => setEmployeeId(e.target.value)}
-                  placeholder="Enter your Engineer ID"
+                  placeholder="JVVNL2024001"
                   className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-neutral-50 dark:bg-neutral-700 text-primary dark:text-secondary focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
 

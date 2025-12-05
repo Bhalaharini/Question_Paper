@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { adminApi } from '../api/backend';
 
 interface PriorityRequest {
   id: string;
@@ -37,43 +38,45 @@ export const useAdmin = () => {
 };
 
 export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [energyMode, setEnergyMode] = useState('Auto Mode');
-  const [mlAutoMode, setMlAutoMode] = useState(false);
-  const [systemStatus] = useState({
+  const [energyMode, setEnergyModeState] = useState('Auto Mode');
+  const [mlAutoMode, setMlAutoModeState] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<Record<string, boolean>>({
     'Crusher Unit': true,
     'Ball Mill': true,
     'Conveyor System': true,
     'AI Control': true
   });
+  const [priorityRequests, setPriorityRequests] = useState<PriorityRequest[]>([]);
+  const [regionalData, setRegionalData] = useState<RegionalData[]>([]);
 
-  const [priorityRequests, setPriorityRequests] = useState<PriorityRequest[]>([
-    {
-      id: '1',
-      facility: 'Crusher Unit 1',
-      priority: 'High',
-      reason: 'Liner wear detected - maintenance required',
-      status: 'Pending',
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000)
-    },
-    {
-      id: '2',
-      facility: 'Ball Mill 2',
-      priority: 'Medium',
-      reason: 'Efficiency optimization needed',
-      status: 'Approved',
-      timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000)
-    }
-  ]);
+  // Fetch admin data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const data = await adminApi.getAdminData();
+        setEnergyModeState(data.energyMode);
+        setMlAutoModeState(data.mlAutoMode);
+        setSystemStatus(data.systemStatus);
+        // Convert API types to local types
+        setPriorityRequests(data.priorityRequests.map(req => ({
+          ...req,
+          priority: req.priority as 'Low' | 'Medium' | 'High' | 'Critical',
+          status: req.status as 'Pending' | 'Approved' | 'Rejected'
+        })));
+        setRegionalData(data.regionalData);
+      } catch (error) {
+        console.error('Error fetching admin data:', error);
+        // Fall back to default data (already set in state)
+      }
+    };
 
-  const [regionalData] = useState<RegionalData[]>([
-    { region: 'Circuit A', usage: 85.2, trend: '+12%' },
-    { region: 'Circuit B', usage: 78.9, trend: '+8%' },
-    { region: 'Circuit C', usage: 82.1, trend: '+15%' },
-    { region: 'Circuit D', usage: 76.5, trend: '+5%' },
-    { region: 'Circuit E', usage: 79.3, trend: '+10%' },
-    { region: 'Circuit F', usage: 81.7, trend: '+7%' }
-  ]);
+    fetchData();
+    // Refresh admin data every 5 seconds
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
+  // ML Auto Mode effect
   useEffect(() => {
     if (mlAutoMode) {
       const modes = ['Solar Only', 'Wind Only', 'Solar+Wind', 'All Sources', 'Auto Mode'];
@@ -85,23 +88,68 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [mlAutoMode]);
 
-  const addPriorityRequest = (request: Omit<PriorityRequest, 'id' | 'timestamp' | 'status'>) => {
-    const newRequest: PriorityRequest = {
-      ...request,
-      id: Date.now().toString(),
-      timestamp: new Date(),
-      status: 'Pending'
-    };
-    setPriorityRequests(prev => [newRequest, ...prev]);
+  const setEnergyMode = async (mode: string) => {
+    try {
+      await adminApi.updateEnergyMode(mode);
+      setEnergyModeState(mode);
+    } catch (error) {
+      console.error('Error updating energy mode:', error);
+      // Update locally anyway for UI responsiveness
+      setEnergyModeState(mode);
+    }
   };
 
-  const updateRequestStatus = (id: string, status: 'Approved' | 'Rejected') => {
-    setPriorityRequests(prev =>
-      prev.map(req => req.id === id ? { ...req, status } : req)
-    );
+  const setMlAutoMode = async (enabled: boolean) => {
+    try {
+      await adminApi.updateMlAutoMode(enabled);
+      setMlAutoModeState(enabled);
+    } catch (error) {
+      console.error('Error updating ML auto mode:', error);
+      // Update locally anyway for UI responsiveness
+      setMlAutoModeState(enabled);
+    }
   };
 
-  const syncHardware = async () => {
+  const addPriorityRequest = async (request: Omit<PriorityRequest, 'id' | 'timestamp' | 'status'>) => {
+    try {
+      await adminApi.createPriorityRequest(request.facility, request.priority, request.reason);
+      // Refresh priority requests
+      const data = await adminApi.getAdminData();
+      setPriorityRequests(data.priorityRequests.map(req => ({
+        ...req,
+        priority: req.priority as 'Low' | 'Medium' | 'High' | 'Critical',
+        status: req.status as 'Pending' | 'Approved' | 'Rejected'
+      })));
+    } catch (error) {
+      console.error('Error creating priority request:', error);
+      // Optimistically add to local state
+      const newRequest: PriorityRequest = {
+        ...request,
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        status: 'Pending'
+      };
+      setPriorityRequests(prev => [newRequest, ...prev]);
+    }
+  };
+
+  const updateRequestStatus = async (id: string, status: 'Approved' | 'Rejected') => {
+    try {
+      await adminApi.updateRequestStatus(id, status);
+      // Update local state
+      setPriorityRequests(prev =>
+        prev.map(req => req.id === id ? { ...req, status } : req)
+      );
+    } catch (error) {
+      console.error('Error updating request status:', error);
+      // Update locally anyway for UI responsiveness
+      setPriorityRequests(prev =>
+        prev.map(req => req.id === id ? { ...req, status } : req)
+      );
+    }
+  };
+
+  const syncHardware = async (): Promise<void> => {
     return new Promise(resolve => setTimeout(resolve, 10000));
   };
 

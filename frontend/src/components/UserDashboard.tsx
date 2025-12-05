@@ -76,7 +76,7 @@ const UserDashboard: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <h3 className="text-base font-semibold text-neutral-800 dark:text-neutral-100 tracking-wide">Plant Status</h3>
-            <p className="text-4xl font-bold text-brand-600 dark:text-brand-400">{renewablePercentage}%</p>
+            <p className="text-4xl font-bold text-brand-600 dark:text-brand-400">{renewablePercentage.toFixed(1)}%</p>
             <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Operational Efficiency: {userData.points}%</p>
           </div>
           <div className="relative w-24 h-24">
@@ -142,7 +142,7 @@ const UserDashboard: React.FC = () => {
           <Battery className="h-8 w-8 text-gray-600" />
           <div className="flex-1">
             <div className="flex justify-between mb-2">
-              <span>Efficiency: {energyData.battery.level}%</span>
+              <span>Efficiency: {energyData.battery.level.toFixed(1)}%</span>
               <span>Health: {energyData.battery.health.toFixed(1)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3">

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { userApi } from '../api/backend';
 
 interface UserData {
   id: string;
@@ -45,27 +46,69 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     badges: ['Efficiency Expert', 'Process Optimizer', 'Safety Champion', 'AI Pioneer']
   });
 
-  const [leaderboard] = useState<LeaderboardUser[]>([
-    { id: '1', name: 'Rajesh Sharma', region: 'Circuit A', points: 2450, renewableUsage: 89.2, rank: 1 },
-    { id: '2', name: 'Priya Gupta', region: 'Circuit B', points: 2380, renewableUsage: 87.5, rank: 2 },
-    { id: '3', name: 'Amit Singh', region: 'Circuit C', points: 2290, renewableUsage: 85.1, rank: 3 },
-    { id: '4', name: 'Sunita Devi', region: 'Circuit D', points: 2150, renewableUsage: 82.3, rank: 4 },
-    { id: '5', name: 'Vikram Rathore', region: 'Circuit E', points: 2050, renewableUsage: 80.7, rank: 5 },
-    { id: '6', name: 'Praveen Kumar', region: 'Mining Operations', points: 1850, renewableUsage: 78.5, rank: 12 }
-  ]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
 
-  const updatePoints = (points: number) => {
-    setUserData(prev => ({
-      ...prev,
-      points: prev.points + points
-    }));
+  // Fetch user data and leaderboard from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [user, leaderboardData] = await Promise.all([
+          userApi.getUser('1'),
+          userApi.getLeaderboard()
+        ]);
+        setUserData(user);
+        setLeaderboard(leaderboardData);
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        // Fall back to default data (already set in state)
+      }
+    };
+
+    fetchData();
+    // Refresh leaderboard every 10 seconds
+    const interval = setInterval(() => {
+      userApi.getLeaderboard()
+        .then(setLeaderboard)
+        .catch(console.error);
+    }, 10000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  const updatePoints = async (points: number) => {
+    try {
+      await userApi.updatePoints(userData.id, points);
+      // Update local state optimistically
+      setUserData(prev => ({
+        ...prev,
+        points: prev.points + points
+      }));
+      // Refresh user data and leaderboard
+      const [user, leaderboardData] = await Promise.all([
+        userApi.getUser(userData.id),
+        userApi.getLeaderboard()
+      ]);
+      setUserData(user);
+      setLeaderboard(leaderboardData);
+    } catch (error) {
+      console.error('Error updating points:', error);
+    }
   };
 
-  const addBadge = (badge: string) => {
-    setUserData(prev => ({
-      ...prev,
-      badges: [...prev.badges, badge]
-    }));
+  const addBadge = async (badge: string) => {
+    try {
+      await userApi.addBadge(userData.id, badge);
+      // Update local state optimistically
+      setUserData(prev => ({
+        ...prev,
+        badges: [...prev.badges, badge]
+      }));
+      // Refresh user data
+      const user = await userApi.getUser(userData.id);
+      setUserData(user);
+    } catch (error) {
+      console.error('Error adding badge:', error);
+    }
   };
 
   return (

@@ -1,21 +1,35 @@
 # SIH25210
 
-A React + Vite + Tailwind frontend with a FastAPI backend proxying Google Gemini. This README explains how to set up both sides locally on macOS.
+A React + Vite + Tailwind frontend with a FastAPI backend connected to MongoDB Atlas and Google Gemini. This README explains how to set up both sides locally on macOS.
+
+## ⚡ Quick Start
+
+**For complete MongoDB integration details, see [MONGODB_INTEGRATION.md](./MONGODB_INTEGRATION.md)**
 
 ## Prerequisites
 - Node.js 18+
 - Python 3.10+ (3.11/3.12/3.13 are fine)
+- MongoDB Atlas connection (already configured)
 - A Google Gemini API key (keep it secret; never commit it)
 
 ## Project structure
 ```
 backend/
+  - main.py              # FastAPI application with API endpoints
+  - database.py          # MongoDB connection configuration
+  - models.py            # Pydantic data models
+  - seed_database.py     # Database initialization script
+  - requirements.txt     # Python dependencies
 frontend/
+  - src/
+    - api/backend.ts     # API service layer
+    - contexts/          # React context providers with API integration
+    - components/        # UI components
 ```
 
 ---
 
-## Backend (FastAPI)
+## Backend (FastAPI + MongoDB)
 
 ### 1) Create and activate a virtual environment
 ```bash
@@ -32,20 +46,27 @@ pip install -r requirements.txt
 ### 3) Configure environment variables
 Create a `.env` file in `backend/`:
 ```
+MONGODB_URI=mongodb+srv://root:root@dbname.hyrc0.mongodb.net/?appName=dbname
 GEMINI_API_KEY=your_real_key_here
-# Optional, used for CORS during local dev
 CORS_ORIGIN=http://localhost:5173
+PORT=8000
 ```
 
 Never commit your real `.env`. There is a `.gitignore` in `backend/` and an example file `.env.example` for reference.
 
-### 4) Run the backend
+### 4) Seed the database (First time only)
 ```bash
-uvicorn main:app --reload --port 8000
+python seed_database.py
+```
+This will populate MongoDB with initial data for energy, users, leaderboard, and admin settings.
+
+### 5) Run the backend
+```bash
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 Backend health check:
 ```bash
-curl -s http://localhost:8001/health
+curl -s http://localhost:8000/health
 ```
 
 Endpoints:

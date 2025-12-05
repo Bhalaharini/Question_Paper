@@ -8,7 +8,7 @@ import {
 import { Panel } from './ui/Panel';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip, Cell } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 
 
@@ -107,13 +107,70 @@ const AdminDashboard: React.FC = () => {
   const renderAnalytics = () => (
     <div className="space-y-6">
       {/* Regional Bar Chart */}
-      <div className="rounded-xl p-6 shadow-sm border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800">
-        <h3 className="text-lg font-semibold mb-4 text-primary">Machine Data Overview</h3>
+      <div className="rounded-xl p-6 shadow-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800">
+        <h3 className="text-lg font-semibold mb-6 text-primary flex items-center">
+          <BarChart3 className="h-5 w-5 mr-2 text-blue-600" />
+          Machine Data Overview
+        </h3>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={regionalData} className="chart-surface">
-            <XAxis dataKey="region" tick={{ fill: 'var(--chart-axis)', fontSize: 12 }} axisLine={{ stroke: 'var(--chart-axis)' }} tickLine={{ stroke: 'var(--chart-axis)' }} />
-            <YAxis tick={{ fill: 'var(--chart-axis)', fontSize: 12 }} axisLine={{ stroke: 'var(--chart-axis)' }} tickLine={{ stroke: 'var(--chart-axis)' }} />
-            <Bar dataKey="usage" fill="var(--chart-bar)" />
+          <BarChart data={regionalData} className="chart-surface" margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+            <XAxis 
+              dataKey="region" 
+              tick={{ fill: 'var(--chart-axis)', fontSize: 12, fontWeight: 500 }} 
+              axisLine={{ stroke: '#d1d5db' }} 
+              tickLine={false}
+            />
+            <YAxis 
+              tick={{ fill: 'var(--chart-axis)', fontSize: 12 }} 
+              axisLine={{ stroke: '#d1d5db' }} 
+              tickLine={false}
+              domain={[0, 100]}
+            />
+            <Tooltip 
+              contentStyle={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                border: '1px solid #e5e7eb', 
+                borderRadius: '8px',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+              }}
+              labelStyle={{ fontWeight: 'bold', color: '#374151' }}
+              itemStyle={{ color: '#3b82f6' }}
+            />
+            <Bar dataKey="usage" radius={[8, 8, 0, 0]}>
+              {regionalData.map((entry, index) => (
+                <Cell 
+                  key={`cell-${index}`} 
+                  fill={`url(#colorGradient${index})`}
+                />
+              ))}
+            </Bar>
+            <defs>
+              <linearGradient id="colorGradient0" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity={1}/>
+                <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.8}/>
+              </linearGradient>
+              <linearGradient id="colorGradient1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#8b5cf6" stopOpacity={1}/>
+                <stop offset="100%" stopColor="#6d28d9" stopOpacity={0.8}/>
+              </linearGradient>
+              <linearGradient id="colorGradient2" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ec4899" stopOpacity={1}/>
+                <stop offset="100%" stopColor="#db2777" stopOpacity={0.8}/>
+              </linearGradient>
+              <linearGradient id="colorGradient3" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
+                <stop offset="100%" stopColor="#d97706" stopOpacity={0.8}/>
+              </linearGradient>
+              <linearGradient id="colorGradient4" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity={1}/>
+                <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
+              </linearGradient>
+              <linearGradient id="colorGradient5" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#06b6d4" stopOpacity={1}/>
+                <stop offset="100%" stopColor="#0891b2" stopOpacity={0.8}/>
+              </linearGradient>
+            </defs>
           </BarChart>
         </ResponsiveContainer>
       </div>

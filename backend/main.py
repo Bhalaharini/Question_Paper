@@ -3,6 +3,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from datetime import datetime
+from typing import List
 
 load_dotenv()
 
@@ -10,6 +12,30 @@ try:
     from google import genai
 except Exception as e:
     genai = None
+
+from database import (
+    energy_collection,
+    users_collection,
+    leaderboard_collection,
+    admin_collection,
+    priority_requests_collection,
+    regional_data_collection,
+    system_status_collection
+)
+from models import (
+    EnergyData,
+    EnergyDataResponse,
+    UserData,
+    LeaderboardUser,
+    UpdatePointsRequest,
+    AddBadgeRequest,
+    PriorityRequest,
+    CreatePriorityRequest,
+    UpdateRequestStatusRequest,
+    RegionalData,
+    AdminSettings,
+    AdminDataResponse
+)
 
 
 class VoiceCommandRequest(BaseModel):
@@ -44,6 +70,286 @@ app.add_middleware(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ============================================
+# Energy Data Endpoints
+# ============================================
+
+@app.get("/api/energy/current", response_model=EnergyDataResponse)
+async def get_current_energy():
+    """Get current energy data with historical records"""
+    try:
+        # Get the most recent energy data
+        current = await energy_collection.find_one(sort=[("timestamp", -1)])
+        
+        # Get last 100 historical records
+        historical_cursor = energy_collection.find().sort("timestamp", -1).limit(100)
+        historical = await historical_cursor.to_list(length=100)
+        
+        if not current:
+            # Return default data if no data exists
+            return {
+                "energyData": {
+                    "solar": 0,
+                    "wind": 0,
+                    "grid": 0,
+                    "battery": {"level": 75, "health": 92},
+                    "consumption": 0,
+                    "timestamp": datetime.now()
+                },
+                "renewablePercentage": 75,
+                "isOnline": True,
+                "alerts": [],
+                "historicalData": []
+            }
+        
+        # Calculate renewable percentage (using battery level as equipment efficiency)
+        renewable_percentage = current.get("battery", {}).get("level", 75)
+        
+        # Generate alerts based on current data
+        alerts = []
+        if current.get("battery", {}).get("level", 0) < 70:
+            alerts.append("Equipment Efficiency Low")
+        if current.get("solar", 0) > 90:
+            alerts.append("Crusher Overload Warning")
+        if current.get("wind", 0) < 10:
+            alerts.append("Mill Speed Below Optimal")
+        if current.get("grid", 0) > 900:
+            alerts.append("High Throughput Achieved")
+        
+        return {
+            "energyData": current,
+            "renewablePercentage": renewable_percentage,
+            "isOnline": True,
+            "alerts": alerts,
+            "historicalData": historical
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching energy data: {str(e)}")
+
+
+@app.post("/api/energy/update")
+async def update_energy_data(data: EnergyData):
+    """Add new energy data point"""
+    try:
+        data_dict = data.model_dump()
+        result = await energy_collection.insert_one(data_dict)
+        return {"success": True, "id": str(result.inserted_id)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating energy data: {str(e)}")
+
+
+# ============================================
+# User Data Endpoints
+# ============================================
+
+@app.get("/api/user/{user_id}", response_model=UserData)
+async def get_user_data(user_id: str):
+    """Get user data by ID"""
+    try:
+        user = await users_collection.find_one({"id": user_id})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching user data: {str(e)}")
+
+
+@app.get("/api/leaderboard", response_model=List[LeaderboardUser])
+async def get_leaderboard():
+    """Get leaderboard data"""
+    try:
+        cursor = leaderboard_collection.find().sort("rank", 1)
+        leaderboard = await cursor.to_list(length=100)
+        return leaderboard
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching leaderboard: {str(e)}")
+
+
+@app.post("/api/user/points")
+async def update_user_points(request: UpdatePointsRequest):
+    """Update user points"""
+    try:
+        # Update in users collection
+        user_result = await users_collection.update_one(
+            {"id": request.userId},
+            {"$inc": {"points": request.points}}
+        )
+        
+        # Update in leaderboard collection
+        leaderboard_result = await leaderboard_collection.update_one(
+            {"id": request.userId},
+            {"$inc": {"points": request.points}}
+        )
+        
+        if user_result.modified_count == 0 and leaderboard_result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Recalculate ranks
+        await recalculate_leaderboard_ranks()
+        
+        return {"success": True, "message": "Points updated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating points: {str(e)}")
+
+
+@app.post("/api/user/badge")
+async def add_user_badge(request: AddBadgeRequest):
+    """Add a badge to user"""
+    try:
+        result = await users_collection.update_one(
+            {"id": request.userId},
+            {"$addToSet": {"badges": request.badge}}
+        )
+        
+        if result.modified_count == 0:
+            # Check if user exists
+            user = await users_collection.find_one({"id": request.userId})
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            # Badge might already exist
+            return {"success": True, "message": "Badge already exists or added"}
+        
+        return {"success": True, "message": "Badge added successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error adding badge: {str(e)}")
+
+
+async def recalculate_leaderboard_ranks():
+    """Recalculate and update leaderboard ranks based on points"""
+    try:
+        # Get all leaderboard entries sorted by points
+        cursor = leaderboard_collection.find().sort("points", -1)
+        entries = await cursor.to_list(length=1000)
+        
+        # Update ranks
+        for idx, entry in enumerate(entries, start=1):
+            await leaderboard_collection.update_one(
+                {"id": entry["id"]},
+                {"$set": {"rank": idx}}
+            )
+            # Also update in users collection
+            await users_collection.update_one(
+                {"id": entry["id"]},
+                {"$set": {"rank": idx}}
+            )
+    except Exception as e:
+        print(f"Error recalculating ranks: {e}")
+
+
+# ============================================
+# Admin Data Endpoints
+# ============================================
+
+@app.get("/api/admin/data", response_model=AdminDataResponse)
+async def get_admin_data():
+    """Get all admin data including settings, priority requests, regional data, and system status"""
+    try:
+        # Get admin settings
+        settings = await admin_collection.find_one({"type": "settings"})
+        if not settings:
+            settings = {"energyMode": "Auto Mode", "mlAutoMode": False}
+        
+        # Get priority requests
+        cursor = priority_requests_collection.find().sort("timestamp", -1)
+        priority_requests = await cursor.to_list(length=100)
+        
+        # Get regional data
+        cursor = regional_data_collection.find()
+        regional_data = await cursor.to_list(length=100)
+        
+        # Get system status
+        cursor = system_status_collection.find()
+        system_status_list = await cursor.to_list(length=100)
+        system_status = {item["name"]: item["status"] for item in system_status_list}
+        
+        return {
+            "energyMode": settings.get("energyMode", "Auto Mode"),
+            "mlAutoMode": settings.get("mlAutoMode", False),
+            "systemStatus": system_status,
+            "priorityRequests": priority_requests,
+            "regionalData": regional_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching admin data: {str(e)}")
+
+
+@app.post("/api/admin/energy-mode")
+async def update_energy_mode(mode: str):
+    """Update energy mode"""
+    try:
+        result = await admin_collection.update_one(
+            {"type": "settings"},
+            {"$set": {"energyMode": mode}},
+            upsert=True
+        )
+        return {"success": True, "message": "Energy mode updated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating energy mode: {str(e)}")
+
+
+@app.post("/api/admin/ml-auto-mode")
+async def update_ml_auto_mode(enabled: bool):
+    """Toggle ML auto mode"""
+    try:
+        result = await admin_collection.update_one(
+            {"type": "settings"},
+            {"$set": {"mlAutoMode": enabled}},
+            upsert=True
+        )
+        return {"success": True, "message": "ML auto mode updated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating ML auto mode: {str(e)}")
+
+
+@app.post("/api/admin/priority-request")
+async def create_priority_request(request: CreatePriorityRequest):
+    """Create a new priority request"""
+    try:
+        new_request = {
+            "id": str(datetime.now().timestamp()),
+            "facility": request.facility,
+            "priority": request.priority,
+            "reason": request.reason,
+            "status": "Pending",
+            "timestamp": datetime.now()
+        }
+        
+        result = await priority_requests_collection.insert_one(new_request)
+        return {"success": True, "id": str(result.inserted_id)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating priority request: {str(e)}")
+
+
+@app.post("/api/admin/priority-request/status")
+async def update_priority_request_status(request: UpdateRequestStatusRequest):
+    """Update priority request status"""
+    try:
+        result = await priority_requests_collection.update_one(
+            {"id": request.requestId},
+            {"$set": {"status": request.status}}
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="Priority request not found")
+        
+        return {"success": True, "message": "Status updated"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating request status: {str(e)}")
+
+
+# ============================================
+# Gemini AI Endpoints
+# ============================================
 
 
 @app.post("/api/gemini/voice", response_model=GeminiResponse)

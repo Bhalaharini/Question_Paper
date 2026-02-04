@@ -1,4 +1,4 @@
-# Question_Paper
+# Mining_app
 
 A React + Vite + Tailwind frontend with a FastAPI backend connected to MongoDB Atlas and Google Gemini. This README explains how to set up both sides locally on macOS.
 
